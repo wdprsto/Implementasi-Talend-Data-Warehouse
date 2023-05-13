@@ -26,17 +26,78 @@ Salah satu client dari ID/X Partners yang bergerak di bidang e-commerce memiliki
 
 ### Kasus 1
 
+Restore database Staging dapat dilakukan melalui fitur “Restore” yang terdapat di aplikasi SQL Server Management Studio (SSMS). Klik kanan pada folder Databases lalu pilih “Restore Database”. Pada opsi sumber, pilih file Staging.bak yang telah tersedia, Selanjutnya klik “Ok” hingga proses restore selesai.
+
 
 
 ### Kasus 2
+
+Database baru bernama DWH_Project dapat dibuat melalui aplikasi SSMS.
+
+Pada database akan dibuat tabel dimension dengan nama 
+
+- `DimCustomer`, 
+
+- `DimProduct`, 
+
+- `DimStatusOrder`, dan
+
+tabel Fact dengan nama `FactSalesOrder`. Nama kolom dan tipe data dari setiap tabel akan disesuaikan dengan yang ada di Staging, dengan penulisan nama kolom mengikuti kaidah **Pascal Case**. Disamping itu, ditetapkan juga primary key dan foreign key pada setiap tabel Fact dan Dimension.
+
+Sebagai informasi tambahan, `fact table` digunakan untuk menyimpan pengukuran kuantitatif dari proses atau peristiwa. Di sisi lain, `dimension table` memberikan konteks tambahan tentang data di fact table. Dengan menggabungkan fact table dan dimension table, data engineer dapat membangun model yang memberikan wawasan ke dalam data mereka.
 
 
 
 ### Kasus 3
 
+Proses ETL yang dilakukan pada Talend dapat digambarkan seperti di bawah ini.
+
+![](Assets/job_talend.PNG)
+
+Pada proses migrasi data dari `Staging` ke `DWH_Project`, terlihat terdapat _hop_/aliran data dengan nama row1 hingga row4, di mana rincian dari masing-masing _hop_ tersebut ialah sebagai berikut.
+
+- `row1(Main)`: Memuat dari tabel `product` pada database Staging ke tabel `DimProduct` pada database DWH_Project.
+
+- `row2(Main)`: Memuat dari tabel `status_order` pada database Staging ke tabel `DimStatusOrder` pada database DWH_Project.
+
+- `row3(Main)`: Memuat dari tabel `product` pada database Staging ke tabel `DimCustomer` pada database DWH_Project. Akan tetapi, Pada bagian ini dilakukan operasi tMap terlebih dahulu untuk menggabungkan nilai pada kolom `first_name` dan `last_name` sehingga menghasilkan full name yang nantinya akan menjadi kolom `CustomerName` pada tabel `DimCustomer` di database DWH_Project. Gambaran proses transformasi map terlibat sebagai berikut.
+  
+  ![](Assets/tmap_name.PNG)
+
+- `row4(Main)`: Memuat dari tabel `sales_order` pada database Staging ke tabel `FactSalesOrder` pada database DWH_Project.
+
 
 
 ### Kasus 4
+
+Untuk membuat Stored Procedure tersebut, query yang dapat kita gunakan ialah sebagai berikut.
+
+```sql
+CREATE PROCEDURE dbo.summary_order_status
+(
+	@statusId int
+)
+AS
+BEGIN
+	SELECT OrderID, dc.CustomerName, dp.ProductName, fso.Quantity, dso.StatusOrder
+	FROM dbo.FactSalesOrder fso
+	JOIN dbo.DimCustomer dc 
+		on dc.CustomerId = fso.CustomerId
+	JOIN dbo.DimProduct dp
+		on dp.ProductId = fso.ProductId
+	JOIN dbo.DimStatusOrder dso
+		on dso.StatusId = fso.StatusId
+	WHERE fso.StatusId = @statusId;
+END;
+```
+
+Untuk menjalankan SP tersebut, kita dapat memanggilnya dengan cara sebagai berikut.
+
+```sql
+use DWH_Project;
+
+exec dbo.summary_order_status @statusId=1;
+```
 
 
 
